@@ -363,7 +363,7 @@ def process_csv_df(df, ftp, seven_zone_model=True, window_size=5, use_roll_avg=T
                 in_interval = True
             elif in_interval:
                 current_time = df.at[i, 'timestamp']
-                future_time = current_time + timedelta(seconds=10)
+                future_time = current_time + timedelta(seconds=5)
 
                 future_segment = df[(df['timestamp'] > current_time) & (df['timestamp'] <= future_time)]
                 if not future_segment.empty and future_segment['power_derivative'].mean() < 0:
