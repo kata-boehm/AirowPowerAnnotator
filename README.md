@@ -83,3 +83,9 @@ Zones are calculated as a percentage of FTP:
 |---|---|---|
 | Download Selected Timestamps | `<original_filename>_with_manual_labels.csv` | Full input CSV + `Manual_Timestamps` column |
 | Labels Model | `model_labels.csv` | `timestamp` and `interval_group_id` for each detected interval start |
+
+---
+
+## Reasoning for using Dash
+
+Dash was chosen because the annotation tool requires interactive callbacks on top of the existing Python processing pipeline, so the same pandas and numpy code used for interval detection can be reused directly without reimplementing it in JavaScript. Since Dash executes these callbacks server-side, the application depends on a running Python process and cannot be deployed on static hosting such as GitHub Pages. Render was used as the hosting platform, though any service that runs a Python web process (for example Heroku, Railway, or a self-hosted container) would serve the same purpose.
