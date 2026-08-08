@@ -86,6 +86,38 @@ Zones are calculated as a percentage of FTP:
 
 ---
 
+### Processing Pipeline
+
+The pipeline transforms a raw power time series into labelled interval segments through the following steps:
+
+**1. `process_csv_df` — Preprocessing and zone classification**
+Sorts records, removes duplicate timestamps and reindexes to a continuous 1-second grid. Computes a centred rolling mean of power (window = 5s) and its first derivative. Candidate interval starts and ends are flagged where the derivative exceeds ±`watt_drop`, and these candidates are extended backward/forward while the local gradient remains in the same direction. Power is then classified into seven zones as a percentage of FTP.
+
+**2. `group_true_values` — Candidate grouping**
+Collapses consecutive runs of start and end candidates into single boundary flags, keeping only the first occurrence of each group by checking the two neighbouring rows.
+
+**3. `enforce_consecutive_intervals` — Boundary consistency**
+Guarantees an alternating start/end structure: a row following an end is forced to be a start and vice versa. The first and last rows of the session are forced to be a start and an end respectively.
+
+**4. `assign_dominant_zone_type_per_interval` — Interval labelling**
+Assigns a group ID via cumulative sum over the start flags and labels each interval with its most frequent power zone (majority vote).
+
+**5. `merge_consecutive_same_zone_intervals` — Merging identical zones**
+Merges adjacent intervals sharing the same zone label, renumbers the group IDs and marks the definitive first and last row of each resulting interval.
+
+**6. `detect_and_invalidate_stop_resume_events` — Artefact removal**
+Detects short stop-and-resume events within a 20-second sliding window, defined as a power drop above the threshold followed by a return to the previous level. Boundaries inside such windows are invalidated and the interval metadata preceding the drop is carried forward.
+
+**7. `merge_short_intervals` — Removal of spurious segments**
+Reassigns intervals shorter than the minimum duration to whichever neighbour has the closer mean power over a 5-second comparison window.
+
+**8. `reassign_first_n_seconds` — Warm-up handling**
+Overwrites the zone label of the first 60 seconds with the first valid zone occurring after the cutoff, removing the artificial boundary caused by the session start.
+
+Step 5 is applied a second time after step 8, since the preceding corrections can leave adjacent intervals with identical zone labels.
+
+---
+
 ## Reasoning for using Dash
 
 Dash was chosen because the annotation tool requires interactive callbacks on top of the existing Python processing pipeline, so the same pandas and numpy code used for interval detection can be reused directly without reimplementing it in JavaScript. Since Dash executes these callbacks server-side, the application depends on a running Python process and cannot be deployed on static hosting such as GitHub Pages. Render was used as the hosting platform, though any service that runs a Python web process (for example Heroku, Railway, or a self-hosted container) would serve the same purpose.
