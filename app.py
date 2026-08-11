@@ -229,8 +229,10 @@ def update_graph_and_handle_click(contents, uploaded_filename, ftp_value, watt_t
                                   for i, ts in enumerate(manual_timestamps)]
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {}, True, [], [], None, f"Error: {str(e)}", None
-    
+
     # === PATH 2: REUSE STORED DATA (FAST PATH) ===
     else:
         if stored_df_json is None:
@@ -266,8 +268,10 @@ def update_graph_and_handle_click(contents, uploaded_filename, ftp_value, watt_t
                 # current_table already reflects deletions from the UI
                 updated_points = current_table
         except Exception as e:
-            return {}, True, [], [], None, f"Error: {str(e)}", None
-    
+            import traceback
+            traceback.print_exc()
+            return {}, True, [], [], None, f"Error: {str(e)}", stored_df_json
+
     # === COMMON PROCESSING FOR BOTH PATHS ===
     
     # Sort points by timestamp and assign labels
