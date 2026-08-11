@@ -235,35 +235,38 @@ def update_graph_and_handle_click(contents, uploaded_filename, ftp_value, watt_t
     else:
         if stored_df_json is None:
             return {}, True, [], [], None, "No data loaded", None
-        
-        # Read from stored JSON (much faster than reprocessing)
-        df = pd.read_json(stored_df_json, orient='split')
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df_json = stored_df_json  # Reuse without modification
-        
-        # Start with current table data or empty list
-        updated_points = current_table.copy() if current_table else []
-        
-        # Handle auto-detect button
-        if triggered == "auto-detect-button":
-            start_times = df.loc[df["final_group_start"] == True, "timestamp"].dropna().dt.floor("s")
-            updated_points = [{"timestamp": str(ts), "y_value": None} for ts in start_times]
-        
-        # Handle graph clicks (add/remove points)
-        elif triggered == "timeseries-plot" and clickData:
-            timestamp_clicked = clickData["points"][0]["x"]
-            y_clicked = clickData["points"][0]["y"]
-            
-            # Toggle: remove if exists, add if new
-            if any(p["timestamp"] == timestamp_clicked for p in updated_points):
-                updated_points = [p for p in updated_points if p["timestamp"] != timestamp_clicked]
-            else:
-                updated_points.append({"timestamp": timestamp_clicked, "y_value": y_clicked})
-        
-        # Handle row deletion from table
-        elif triggered == "timestamp-table":
-            # current_table already reflects deletions from the UI
-            updated_points = current_table
+
+        try:
+            # Read from stored JSON (much faster than reprocessing)
+            df = pd.read_json(stored_df_json, orient='split')
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df_json = stored_df_json  # Reuse without modification
+
+            # Start with current table data or empty list
+            updated_points = current_table.copy() if current_table else []
+
+            # Handle auto-detect button
+            if triggered == "auto-detect-button":
+                start_times = df.loc[df["final_group_start"] == True, "timestamp"].dropna().dt.floor("s")
+                updated_points = [{"timestamp": str(ts), "y_value": None} for ts in start_times]
+
+            # Handle graph clicks (add/remove points)
+            elif triggered == "timeseries-plot" and clickData:
+                timestamp_clicked = clickData["points"][0]["x"]
+                y_clicked = clickData["points"][0]["y"]
+
+                # Toggle: remove if exists, add if new
+                if any(p["timestamp"] == timestamp_clicked for p in updated_points):
+                    updated_points = [p for p in updated_points if p["timestamp"] != timestamp_clicked]
+                else:
+                    updated_points.append({"timestamp": timestamp_clicked, "y_value": y_clicked})
+
+            # Handle row deletion from table
+            elif triggered == "timestamp-table":
+                # current_table already reflects deletions from the UI
+                updated_points = current_table
+        except Exception as e:
+            return {}, True, [], [], None, f"Error: {str(e)}", None
     
     # === COMMON PROCESSING FOR BOTH PATHS ===
     
@@ -388,7 +391,9 @@ def process_csv_df(df, ftp, seven_zone_model=True, window_size=5, use_roll_avg=T
         power_labels = ['Zone1', 'Zone2', 'Zone3', 'Zone4', 'Zone5', 'Zone6']
 
     df['Power_Zone'] = pd.cut(df['power_for_classification'] / ftp * 100, bins=power_bins, labels=power_labels)
-    df['Interval_Type'] = df['Power_Zone'].astype(str)
+    # Convert missing zones to 'Unclassified' via an explicit NaN mask rather than
+    # relying on how astype(str) happens to stringify NaN — that differs across pandas versions.
+    df['Interval_Type'] = df['Power_Zone'].astype(object).where(df['Power_Zone'].notna(), 'Unclassified').astype(str)
 
     return df
 
@@ -433,7 +438,9 @@ def enforce_consecutive_intervals(df, start_col='group_first', end_col='group_la
 
 def assign_dominant_zone_type_per_interval(df, start_col='group_first', label_col='Interval_Type'):
     df = df.copy()
-    df[label_col] = df[label_col].replace({np.nan: 'Unclassified', 'nan': 'Unclassified'})
+    # Catch both real missing values (NaN/pd.NA) and the legacy literal 'nan' string
+    # that older pandas versions produced when stringifying a missing Categorical value.
+    df[label_col] = df[label_col].mask(df[label_col].isna() | (df[label_col] == 'nan'), 'Unclassified')
 
     # Assign a group ID to each interval based on cumulative sum of start flags
     df['interval_group_id'] = df[start_col].cumsum()
