@@ -240,7 +240,7 @@ def update_graph_and_handle_click(contents, uploaded_filename, ftp_value, watt_t
 
         try:
             # Read from stored JSON (much faster than reprocessing)
-            df = pd.read_json(stored_df_json, orient='split')
+            df = pd.read_json(io.StringIO(stored_df_json), orient='split')
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             df_json = stored_df_json  # Reuse without modification
 
@@ -319,10 +319,10 @@ def update_graph_and_handle_click(contents, uploaded_filename, ftp_value, watt_t
 def export_model_labels(n_clicks, stored_df_json):
     if not stored_df_json:
         return None
-    
-    df = pd.read_json(stored_df_json, orient='split')
+
+    df = pd.read_json(io.StringIO(stored_df_json), orient='split')
     df = df[df["final_group_start"] == True]
-    
+
     return send_data_frame(df[["timestamp", "interval_group_id"]].to_csv, "model_labels.csv", index=False)
 
 
